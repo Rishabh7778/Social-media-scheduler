@@ -1,0 +1,69 @@
+Phase 1: Login & Identity (Chabi Haasil Karna)
+Sabse pehle system ko pata hona chahiye ki user kaun hai aur uske paas Facebook ki permission hai ya nahi.
+
+Frontend: User React app par "Login with Facebook" button dabata hai.
+
+Backend (Passport.js): Browser user ko Facebook ke server par bhejta hai.
+
+Facebook Consent: User permission deta hai (pages_manage_posts, etc.).
+
+Passport Strategy (Database Link): * Facebook se user ki ID aur accessToken milta hai.
+
+Aapka code Database mein SELECT karke dekhta hai: "Kya ye user naya hai?"
+
+Naya hai: Toh users mein ek row aur social_accounts mein dusri row INSERT hoti hai.
+
+Purana hai: Toh uska naya accessToken purane wale par UPDATE ho jata hai.
+
+JWT Generation: Backend ek JWT Token banata hai jisme aapki Database wali ID (insertId) chupi hoti hai.
+
+Frontend Storage: Browser user ko wapas React par bhejta hai, aur React us Token ko localStorage mein patak deta hai.
+
+Phase 2: Post Creation (Sapna Bunna)
+Ab user login hai aur ek meme ya post schedule karna chahta hai.
+
+Fetch Pages: React app backend se getUserPages maangti hai. Backend database se token nikaalta hai, Facebook API ko call karta hai, aur user ke saare Pages ki list dikha deta hai.
+
+FormData Preparation: User image select karta hai, caption likhta hai, aur Page select karta hai.
+
+The Request: React se ek POST request jaati hai /createPost par. Kyunki photo hai, isliye hum FormData bhejte hain.
+
+Multer & Cloudinary (Middleware): * Request backend pahunchne se pehle Multer use beech mein pakadta hai.
+
+Photo ko seedha Cloudinary par upload kar deta hai.
+
+Cloudinary ek https://... wala link wapas deta hai jo req.file.path mein mil jata hai.
+
+Database Entry: Backend aapke MySQL mein post ki saari details (Title, Image URL, Schedule Time) save kar deta hai.
+
+Phase 3: Scheduling & Execution (Asli Automation)
+Ye piche ka engine hai jo user ke so jane ke baad bhi kaam karta hai.
+
+BullMQ (The Manager): Backend postQueue.add() karke ek "Job" banata hai.
+
+Isme saara data hota hai: Post ID, Image URL, Page Token.
+
+Isme ek delay hota hai (Scheduled Time - Current Time).
+
+Redis (The Locker): Ye Job Redis mein jaakar baith jaati hai. Redis timer laga deta hai. Jab tak time nahi hota, wo Job wahi rehti hai.
+
+The Worker (The Mechanic): Jaise hi timer 0 hota hai, aapka Worker jaagta hai.
+
+Worker dabba kholta hai, Cloudinary ka link aur Facebook ka token nikaalta hai.
+
+Woh axios.post ke zariye Facebook Graph API ko bolta hai: "Bhai, ye photo is link se uthao aur is Page par daal do."
+
+Facebook Server: Facebook Cloudinary ke link se photo download karta hai aur Page par post kar deta hai.
+
+Job Completed: Worker bolta hai "Success!" aur Redis se wo job khatam ho jaati hai.
+
+Summary (Ravi bhai ke liye):
+Frontend: Sirf Form bharta hai.
+
+Database: Record rakhta hai ki kaunsa post kab ka hai.
+
+Cloudinary: Photo ki dukaan hai (Hosting).
+
+Redis/BullMQ: Ek alarm clock hai jo sahi waqt par kaam shuru karti hai.
+
+Worker: Asli post karne wala banda hai.
