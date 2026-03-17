@@ -1,6 +1,6 @@
-import db from './db.js';
+import db from '../config/db.js';
 
-const socialTable = async () => {
+const SocialAccounts = async () => {
   try {
     await db.execute(`
     CREATE TABLE IF NOT EXISTS social_accounts (
@@ -20,4 +20,4 @@ const socialTable = async () => {
   } 
 };
 
-export default socialTable;  
+export default SocialAccounts;  

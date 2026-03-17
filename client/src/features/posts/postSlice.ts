@@ -13,10 +13,9 @@ const initialState: PostState = {
   error: null,
 };
 
-// Async Thunk for creating a post (Text + Image)
+// 🚨 1. Create Post (Text + Image)
 export const createPost = createAsyncThunk('posts/createPost', async (postData: FormData, { rejectWithValue }) => {
   try {
-    // Axios header mein automatically 'multipart/form-data' set kar dega kyunki hum FormData bhej rahe hain
     const response = await API.post('/posts/createPost', postData); 
     return response.data;
   } catch (error: any) {
@@ -24,24 +23,100 @@ export const createPost = createAsyncThunk('posts/createPost', async (postData: 
   }
 });
 
+// 🚨 2. Fetch User Posts (GET)
+export const fetchUserPosts = createAsyncThunk('posts/fetchUserPosts', async (_, { rejectWithValue }) => {
+  try {
+    const response = await API.get('/posts/my-posts');
+    return response.data;
+  } catch (error: any) {
+    return rejectWithValue(error.response?.data?.error || 'Failed to fetch posts');
+  }
+});
+
+// 🚨 3. Cancel Scheduled Post (DELETE)
+export const cancelPost = createAsyncThunk('posts/cancelPost', async (postId: number, { rejectWithValue }) => {
+  try {
+    await API.delete(`/posts/cancel-schedule/${postId}`);
+    return postId; 
+  } catch (error: any) {
+    return rejectWithValue(error.response?.data?.error || 'Failed to cancel post');
+  }
+});
+
+// 🚨 4. Delete Published Post (DELETE Everywhere)
+export const deletePost = createAsyncThunk('posts/deletePost', async (postId: number, { rejectWithValue }) => {
+  try {
+    await API.delete(`/posts/delete/${postId}`);
+    return postId;
+  } catch (error: any) {
+    return rejectWithValue(error.response?.data?.error || 'Failed to delete post');
+  }
+});
+
+// 🚨 5. Reschedule Post (PUT)
+export const reschedulePostAPI = createAsyncThunk(
+  'posts/reschedulePost',
+  async ({ postId, newDate }: { postId: number, newDate: string }, { rejectWithValue }) => {
+    try {
+      const token = localStorage.getItem('token');
+      await API.put(`/posts/reschedule/${postId}`, 
+        { newDate }, 
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      // Seedha wahi data return kar rahe hain jo update hua hai
+      return { postId, newDate }; 
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.error || 'Failed to reschedule');
+    }
+  }
+);
+
+// --- SLICE CREATION ---
 const postsSlice = createSlice({
   name: 'posts',
   initialState,
   reducers: {},
   extraReducers: (builder) => {
     builder
-      .addCase(createPost.pending, (state) => {
-        state.isLoading = true;
-        state.error = null;
-      })
-      .addCase(createPost.fulfilled, (state, action: PayloadAction<any>) => {
+      // Fetch Posts
+      .addCase(fetchUserPosts.pending, (state) => { state.isLoading = true; })
+      .addCase(fetchUserPosts.fulfilled, (state, action) => {
         state.isLoading = false;
-        // Nayi post ko state mein add kar do taaki calendar update ho jaye
-        state.posts.push(action.payload); 
+        state.posts = action.payload;
       })
-      .addCase(createPost.rejected, (state, action: PayloadAction<any>) => {
+      .addCase(fetchUserPosts.rejected, (state, action: PayloadAction<any>) => {
         state.isLoading = false;
         state.error = action.payload;
+      })
+      
+      // Create Post
+      .addCase(createPost.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.posts.unshift(action.payload); // Nayi post list mein sabse upar
+      })
+
+      // Cancel Post
+      .addCase(cancelPost.fulfilled, (state, action: PayloadAction<number>) => {
+        state.posts = state.posts.filter(post => post.id !== action.payload);
+      })
+
+      // Delete Post
+      .addCase(deletePost.fulfilled, (state, action: PayloadAction<number>) => {
+        state.posts = state.posts.filter(post => post.id !== action.payload);
+      })
+
+      // Reschedule Post (Time Update Logic)
+      .addCase(reschedulePostAPI.fulfilled, (state, action) => {
+        const { postId, newDate } = action.payload;
+        
+        // Us post ko state mein dhundo
+        const existingPost = state.posts.find(post => post.id === postId);
+        
+        // Agar mil jaye, toh uska time update kar do
+        if (existingPost) {
+          existingPost.scheduled_at = newDate;
+        }
       });
   },
 });

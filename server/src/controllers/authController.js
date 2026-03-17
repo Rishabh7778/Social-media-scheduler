@@ -1,6 +1,7 @@
-import db from '../../database/db.js';
+import db from '../config/db.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import redisClient from '../config/redis.js';
 
 // 1. REGISTER
 export const register = async (req, res) => {
@@ -57,3 +58,72 @@ export const login = async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 };
+
+// 4. LOGOUT (Ultra-Secure Version)
+export const logout = async (req, res) => {
+    try {
+        // 1. Agar session exist karta hai toh use securely destroy karo
+        if (req.session) {
+            req.session.destroy((err) => {
+                if (err) {
+                    console.error("Session destroy error:", err);
+                    return res.status(500).json({ message: "Logout failed on server" });
+                }
+                
+                // 2. Cookie ko browser se clear karo
+                res.clearCookie('connect.sid');
+                
+                // 3. Response bhejo
+                return res.status(200).json({ 
+                    success: true,
+                    message: "Logged out successfully. Session and Cookie cleared." 
+                });
+            });
+        } else {
+            // Agar pehle se hi session nahi hai, toh bas message bhej do
+            return res.status(200).json({ message: "Already logged out." });
+        }
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+
+export const userDetails = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const cacheKey = `user:${userId}`;
+
+        // 1. Pehle Redis (Cache) mein data dhoondo
+        const cachedData = await redisClient.get(cacheKey);
+
+        if (cachedData) {
+            // console.log("🚀 Redis Cache Hit! SQL ki zaroorat nahi padi.");
+            // Redis hamesha string deta hai, isliye parse karke JSON banayein
+            return res.json(JSON.parse(cachedData));
+        }
+
+        // 2. Agar Redis mein nahi hai (Cache Miss), toh Database se fetch karo
+        console.log("🐢 Redis Cache Miss! Database se fetch kar raha hoon...");
+        const [rows] = await db.execute('SELECT id, name, email FROM users WHERE id = ?', [userId]);
+
+        if (rows.length === 0) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        const user = rows[0];
+
+        // 3. Database se mila data Redis mein save karo 
+        // setEx(key, seconds, value) -> 864000 seconds = 10 din
+        await redisClient.setEx(cacheKey, 864000, JSON.stringify(user));
+
+        // 4. Final response bhej do
+        res.json(user);
+
+    } catch (err) {
+        console.error("Redis/DB Error:", err);
+        res.status(500).json({ error: err.message, message: "Failed to fetch user details" });
+    }
+};
+
+

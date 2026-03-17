@@ -1,4 +1,4 @@
-import db from './db.js';
+import db from '../config/db.js';
 
 const postTable = async () => {
   try {
@@ -11,6 +11,8 @@ const postTable = async () => {
     scheduled_at DATETIME NOT NULL,
     status ENUM('pending', 'published', 'failed', 'draft') DEFAULT 'pending',
     image_url VARCHAR(500),
+    provider VARCHAR(50) NOT NULL,
+    provider_post_id VARCHAR(255) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );

@@ -1,44 +1,67 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import type { RootState } from './store/store';
 import AuthPage from './pages/AuthPage';
+import Dashboard from './pages/Dashboard';
 import Calendar from './pages/Calender';
+import Gallery from './pages/Gallery';
+import Settings from './pages/Settings';
+import Overview from './pages/Overview';
+import ShowPosts from './pages/ShowPosts';
+
+// 🚨 1. Naya Component: Ye Security Guard ka kaam karega
+const ProtectedRoute = () => {
+  const { token } = useSelector((state: RootState) => state.auth);
+  const isAuthenticated = !!token || !!localStorage.getItem('token');
+
+  // Agar user ke paas token nahi hai, toh usey wapas login page ("/") par phek do
+  // Agar token hai, toh Outlet render karo (yaani uske andar ke components)
+  return isAuthenticated ? <Outlet /> : <Navigate to="/" replace />;
+};
 
 const App: React.FC = () => {
-  // 1. URL se token pakadne ki Ninja Technique
+  // Social Login Token logic (Facebook / LinkedIn se wapas aane par)
   const urlParams = new URLSearchParams(window.location.search);
   const tokenFromUrl = urlParams.get('token');
-
+  
   if (tokenFromUrl) {
-    // Agar URL mein token aaya hai, toh use jeb (localStorage) mein daal lo
     localStorage.setItem('token', tokenFromUrl);
-    // URL ko saaf kar do taaki ganda na dikhe
-    window.history.replaceState(null, '', '/calendar');
+    window.history.replaceState(null, '', '/dashboard');
   }
 
-  // 2. Redux store se token nikal rahe hain (Sirf ek baar likhna hai)
   const { token } = useSelector((state: RootState) => state.auth);
-  
-  // 3. Check auth: Agar token Redux mein hai YA localStorage mein hai, toh user authenticated hai!
-  const isAuthenticated = !!token || !!localStorage.getItem('token'); 
+  const isAuthenticated = !!token || !!localStorage.getItem('token');
 
   return (
+    <div>
+      <Toaster position="top-right" reverseOrder={false} />
+    
     <Router>
       <Routes>
-        {/* Agar login hai toh seedha calendar bhejo */}
-        <Route 
-          path="/" 
-          element={isAuthenticated ? <Navigate to="/calendar" /> : <AuthPage />} 
+        {/* PUBLIC ROUTE: Sirf unke liye jo login nahi hain */}
+        <Route
+          path="/"
+          element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <AuthPage />}
         />
+
+        {/* 🚨 2. SECURE ROUTES: ProtectedRoute ke andar Dashboard pack kar diya */}
+        <Route element={<ProtectedRoute />}>
+          <Route path="/dashboard" element={<Dashboard />}>
+            <Route index element={<Overview />} />
+            <Route path="schedule" element={<Calendar />} />
+            <Route path="gallery" element={<Gallery />} />
+            <Route path="posts" element={<ShowPosts />} />
+            <Route path="settings" element={<Settings />} />
+          </Route>
+        </Route>
         
-        {/* Protected Route: Ab yeh Facebook se aane par tumhe bahar nahi nikalega */}
-        <Route 
-          path="/calendar" 
-          element={isAuthenticated ? <Calendar /> : <Navigate to="/" />} 
-        />
+        {/* Fallback Route: Agar koi ajeeb URL dale toh usey wapas bhej do */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
+    </div>
   );
 };
 

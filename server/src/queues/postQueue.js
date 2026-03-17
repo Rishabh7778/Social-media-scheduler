@@ -1,15 +1,14 @@
 import { Queue } from 'bullmq';
 import IORedis from 'ioredis';
 
-// 1. Redis se connection banao
+// 1. Redis Connection
 const connection = new IORedis({
   host: 'localhost',
   port: 6379,
-  maxRetriesPerRequest: null, // BullMQ ke liye ye zaroori hai
+  maxRetriesPerRequest: null, 
 });
 
-// 2. Ek nayi Queue banao jiska naam 'facebook-posts' rakhenge
-export const postQueue = new Queue('facebook-posts', { connection });
+// 2. Queue ka naam generic rakhein
+export const postQueue = new Queue('social-posts', { connection });
 
-console.log("✅ BullMQ Queue connected to Redis!");
-
+console.log("✅ BullMQ Generic Social Queue connected!");

@@ -123,6 +123,12 @@ const AuthPage: React.FC = () => {
 >
   Login with Facebook
 </a>
+<a 
+      href="http://localhost:5000/api/auth/linkedin" 
+      className="flex items-center justify-center bg-[#0077b5] hover:bg-[#006097] text-white font-semibold py-2 px-4 rounded-lg transition"
+    >
+      <span className="mr-2">🔗</span> Login with LinkedIn
+    </a>
         </p>
       </div>
       

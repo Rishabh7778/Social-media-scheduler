@@ -1,65 +1,111 @@
 import { Worker } from 'bullmq';
-import IORedis from 'ioredis';
 import axios from 'axios';
+import IORedis from 'ioredis';
+import db from '../config/db.js'; 
+// 🚨 Naya Import: Cache saaf karne ke liye
+import redisClient from '../config/redis.js'; 
 
 const connection = new IORedis({
-  host: 'localhost',
+  host: '127.0.0.1', 
   port: 6379,
-  maxRetriesPerRequest: null,
+  maxRetriesPerRequest: null
 });
 
-const postWorker = new Worker('facebook-posts', async (job) => {
-  const { postContent, id, access_token, imageUrl } = job.data;
+const worker = new Worker('social-posts', async (job) => {
+  // 🚨 userId ko bhi nikal lo job.data se
+  const { provider, postContent, imageUrl, platformId, access_token, userId, postId } = job.data;
 
-  console.log(`🚀 Processing Job ${job.id}: Posting to Page ${id}...`);
-
-  if (!id || id === 'undefined') {
-    throw new Error("Bhai, Page ID 'undefined' mili hai! Queue check karo.");
-  }
+  console.log(`🚀 Processing ${provider} job for Post ID: ${postId}`);
 
   try {
-    let fbResponse;
-    const FB_API_VERSION = 'v20.0';
+    let providerPostId = null;
 
-    if (imageUrl) {
-      // DHAYAN RAKHO: imageUrl ek valid public URL hona chahiye (localhost nahi chalega)
-      fbResponse = await axios.post(
-        `https://graph.facebook.com/${FB_API_VERSION}/${id}/photos`,
-        {
-          caption: postContent,
-          url: imageUrl, // Facebook ise internet se download karega
-          access_token: access_token,
+    if (provider === 'facebook') {
+      // --- Facebook Logic ---
+      const url = imageUrl ? `https://graph.facebook.com/${platformId}/photos` : `https://graph.facebook.com/${platformId}/feed`;
+      const payload = imageUrl ? { caption: postContent, url: imageUrl, access_token } : { message: postContent, access_token };
+
+      const fbResponse = await axios.post(url, payload);
+      providerPostId = fbResponse.data.id;
+      console.log(`✅ Facebook Success! ID: ${providerPostId}`);
+
+    } else if (provider === 'linkedin') {
+      // --- LinkedIn Logic ---
+      const authorUrn = platformId.startsWith('urn:li:') ? platformId : `urn:li:person:${platformId}`;
+      let linkedinMediaUrn = null;
+
+      if (imageUrl) {
+        // Step 1: Register Upload
+        const registerRes = await axios.post('https://api.linkedin.com/v2/assets?action=registerUpload', {
+          registerUploadRequest: {
+            recipes: ['urn:li:digitalmediaRecipe:feedshare-image'],
+            owner: authorUrn,
+            serviceRelationships: [{ relationshipType: 'OWNER', identifier: 'urn:li:userGeneratedContent' }]
+          }
+        }, { headers: { 'Authorization': `Bearer ${access_token}`, 'Content-Type': 'application/json' } });
+
+        const uploadUrl = registerRes.data.value.uploadMechanism['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest'].uploadUrl;
+        linkedinMediaUrn = registerRes.data.value.asset;
+
+        // Step 2: Put Image
+        const imageResponse = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+        await axios.put(uploadUrl, imageResponse.data, {
+          headers: { 'Authorization': `Bearer ${access_token}`, 'Content-Type': 'application/octet-stream' }
+        });
+      }
+
+      // Step 3: Final Post
+      const response = await axios.post('https://api.linkedin.com/v2/ugcPosts', {
+        author: authorUrn,
+        lifecycleState: 'PUBLISHED',
+        specificContent: {
+          'com.linkedin.ugc.ShareContent': {
+            shareCommentary: { text: postContent },
+            shareMediaCategory: imageUrl ? 'IMAGE' : 'NONE',
+            media: imageUrl ? [{
+              status: 'READY',
+              description: { text: postContent.substring(0, 100) }, 
+              media: linkedinMediaUrn, 
+              title: { text: 'Scheduled Image' }
+            }] : []
+          }
+        },
+        visibility: { 'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC' }
+      }, {
+        headers: {
+          'Authorization': `Bearer ${access_token}`,
+          'X-Restli-Protocol-Version': '2.0.0',
+          'Content-Type': 'application/json'
         }
-      );
-    } else {
-      fbResponse = await axios.post(
-        `https://graph.facebook.com/${FB_API_VERSION}/${id}/feed`,
-        {
-          message: postContent,
-          access_token: access_token,
-        }
-      );
+      });
+
+      providerPostId = response.data.id;
+      console.log(`✅ LinkedIn Success! ID: ${providerPostId}`);
     }
 
-    console.log(`✅ Success! Facebook Post ID: ${fbResponse.data.id}`);
-    return fbResponse.data;
+    // --- 💾 COMMON DATABASE UPDATE ---
+    if (providerPostId) {
+      await db.execute(
+        'UPDATE posts SET status = ?, provider_post_id = ? WHERE id = ?',
+        ['published', providerPostId, postId]
+      );
+
+      // 🚨 MAGIC LINE: Successful post ke baad cache saaf karo taaki Dashboard update ho jaye
+      const cacheKey = `posts:${userId}:${provider}`;
+      await redisClient.del(cacheKey);
+      
+      console.log(`✨ DB Updated & Redis Cache Cleared for ${cacheKey}`);
+    }
 
   } catch (error) {
-    const errorDetails = error.response?.data?.error || {};
-    const errorMsg = errorDetails.message || error.message;
-    console.error(`❌ Facebook API Error:`, error.response?.data || error.message);
-    
-    // Agar permission error hai, toh yahan saaf dikhega
-    throw new Error(`FB Error: ${errorMsg}`);
+    console.error(`❌ Worker Error for Post ${postId}:`, error.response?.data || error.message);
+    // Error hone par status 'failed' kar do
+    await db.execute('UPDATE posts SET status = ? WHERE id = ?', ['failed', postId]);
+    throw error; // BullMQ ko batao ki job fail ho gayi
   }
 }, { connection });
 
-postWorker.on('completed', (job) => {
-  console.log(`✨ Job ${job.id} has completed! Check your Facebook Page!`);
-});
+worker.on('completed', (job) => console.log(`✅ Job ${job.id} finished!`));
+worker.on('failed', (job, err) => console.error(`❌ Job ${job.id} failed!`));
 
-postWorker.on('failed', (job, err) => {
-  console.error(`💀 Job ${job.id} failed: ${err.message}`);
-});
-
-export default postWorker;
+export default worker;
