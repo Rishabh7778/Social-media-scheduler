@@ -3,7 +3,7 @@ import Redis from "ioredis";
 const redis = new Redis();
 
 export const rateLimiter  = async (req, res, next) => {
-    const key = `rate-limit:${req.ip}`;
+  const key = `rate-limit:${req.user?.id || req.ip}`;
     const limit = 50; 
     const window = 60;
     

@@ -12,7 +12,7 @@ const Sidebar = () => {
   const menuItems = [
     { icon: <LayoutDashboard size={22} />, label: 'Overview', path: '/dashboard' },
     { icon: <Calendar size={22} />, label: 'Schedule', path: '/dashboard/schedule' },
-    { icon: <ImageIcon size={22} />, label: 'Media Gallery', path: '/dashboard/gallery' },
+    // { icon: <ImageIcon size={22} />, label: 'Media Gallery', path: '/dashboard/gallery' },
     { icon: <ImageIcon size={22} />, label: 'Posts', path: '/dashboard/posts' },
     { icon: <Settings size={22} />, label: 'Settings', path: '/dashboard/settings' },
   ];

@@ -19,3 +19,115 @@ export const schedulePost = async (req, res) => {
 
   res.json({ message: "Post schedule ho gayi hai! Chill maaro." });
 };
+
+
+
+
+
+
+
+
+# =========================
+# docker-compose.yml
+# =========================
+version: '3.9'
+
+services:
+  app:
+    build: .
+    container_name: social_app
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mysql-db
+      - redis
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    command: npm start
+
+  mysql-db:
+    image: mysql:8.0
+    container_name: social_mysql
+    restart: always
+    environment:
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  redis:
+    image: redis:7
+    container_name: social_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  mysql_data:
+  redis_data:
+# =========================
+# Stage 1: Build
+# =========================
+FROM node:20 AS builder
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+
+# =========================
+# Stage 2: Production
+# =========================
+FROM node:20
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install --only=production
+
+COPY --from=builder /app .
+
+EXPOSE 5000
+
+CMD ["npm", "start"]
+
+
+
+
+
+
+services:
+  mysql-db:
+    image: mysql:8.0
+    container_name: social_mysql
+    restart: always
+    environment:
+      MYSQL_DATABASE: social_scheduler
+      MYSQL_ROOT_PASSWORD: Rishabh
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  # --- REDIS STACK (Server + Official GUI Ek Sath) ---
+  redis-stack:
+    image: redis/redis-stack:latest
+    container_name: social_redis_stack
+    restart: always
+    ports:
+      - "6379:6379"   # Ye aapke Node.js backend ke liye (Redis Server)
+      - "8001:8001"   # Ye aapke browser ke liye (RedisInsight GUI)
+    volumes:
+      - redis_data:/data  # Taki down karne par Redis ka data delete na ho
+
+volumes:
+  mysql_data:
+  redis_data:     # Ye add karna zaroori hai

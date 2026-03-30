@@ -48,7 +48,7 @@ const worker = new Worker('social-posts', async (job) => {
         linkedinMediaUrn = registerRes.data.value.asset;
 
         // Step 2: Put Image
-        const imageResponse = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+        const imageResponse = await axios.get(imageUrl, { responseType: 'arraybuffer' }); //Cloudinary se image DOWNLOAD kar rahi hai (binary format me)
         await axios.put(uploadUrl, imageResponse.data, {
           headers: { 'Authorization': `Bearer ${access_token}`, 'Content-Type': 'application/octet-stream' }
         });

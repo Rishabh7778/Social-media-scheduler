@@ -52,10 +52,10 @@ export const createPost = async (req, res) => {
     ]);
 
     const cacheKey = `posts:${userId}:${finalProvider}`;
-await redisClient.del(cacheKey); 
-console.log(`🧹 Cache cleared for: ${cacheKey}`);
+    await redisClient.del(cacheKey); 
+    console.log(`🧹 Cache cleared for: ${cacheKey}`);
 
-    // BullMQ Logic
+    // BullMQ Logic 
     if (status === 'pending' || status === 'scheduled') {
       const delay = Math.max(0, new Date(date).getTime() - Date.now());
       const jobName = finalProvider === 'linkedin' ? 'publish-to-linkedin' : 'publish-to-facebook';

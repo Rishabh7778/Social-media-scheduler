@@ -10,3 +10,11 @@ redisClient.on('error', (err) => console.log('Redis Client Error', err));
 await redisClient.connect();
 
 export default redisClient;
+
+
+
+// Tumhara backend (Node.js)
+//         ↓
+// redisClient (driver)
+//         ↓
+// Redis server (database)

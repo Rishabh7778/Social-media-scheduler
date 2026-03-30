@@ -6,7 +6,6 @@ import type { RootState } from './store/store';
 import AuthPage from './pages/AuthPage';
 import Dashboard from './pages/Dashboard';
 import Calendar from './pages/Calender';
-import Gallery from './pages/Gallery';
 import Settings from './pages/Settings';
 import Overview from './pages/Overview';
 import ShowPosts from './pages/ShowPosts';
@@ -51,7 +50,6 @@ const App: React.FC = () => {
           <Route path="/dashboard" element={<Dashboard />}>
             <Route index element={<Overview />} />
             <Route path="schedule" element={<Calendar />} />
-            <Route path="gallery" element={<Gallery />} />
             <Route path="posts" element={<ShowPosts />} />
             <Route path="settings" element={<Settings />} />
           </Route>
